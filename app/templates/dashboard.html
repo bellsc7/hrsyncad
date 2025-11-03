@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - HR Sync System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">HR Sync</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('main.dashboard') }}">Dashboard</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.logout') }}">Logout</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-12">
+                <h2>Sync Dashboard</h2>
+                <p>Manage data synchronization between MyHR, FTP, and Active Directory.</p>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <i class="bi bi-cloud-download display-4 text-primary"></i>
+                        <h5 class="card-title mt-2">Sync from MyHR API</h5>
+                        <p class="card-text">Fetch employee data from MyHR API.</p>
+                        <button class="btn btn-primary sync-btn" data-source="myhr">Sync Now</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <i class="bi bi-file-earmark-arrow-down display-4 text-success"></i>
+                        <h5 class="card-title mt-1">Sync from FTP</h5>
+                        <p class="card-text">Fetch employee data from FTP server.</p>
+                        <button class="btn btn-success sync-btn" data-source="ftp">Sync Now</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <i class="bi bi-person-badge display-4 text-warning"></i>
+                        <h5 class="card-title mt-2">Update Active Directory</h5>
+                        <p class="card-text">Update employee data in Active Directory.</p>
+                        <button class="btn btn-warning sync-btn" data-source="ad">Sync Now</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Full Sync Process</h5>
+                        <button class="btn btn-primary" id="sync-all-btn">Run All Steps</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="progress" id="sync-progress" style="display: none;">
+                            <div class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                        </div>
+                        <div id="sync-status" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sync History Table -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Recent Sync History</h5>
+                        <button class="btn btn-sm btn-outline-primary" onclick="location.reload();">Refresh</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Message</th>
+                                        <th>Updated / Not Found</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for sync in sync_history %}
+                                    <tr>
+                                        <td>{{ sync.start_time.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                        <td>{{ sync.sync_type.upper() }}</td>
+                                        <td>
+                                            {% if sync.status == 'success' %}
+                                                <span class="badge bg-success">{{ sync.status }}</span>
+                                            {% elif sync.status == 'running' %}
+                                                <span class="badge bg-info">{{ sync.status }}</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">{{ sync.status }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ sync.message[:50] if sync.message else '' }}{% if sync.message and sync.message|length > 50 %}...{% endif %}</td>
+                                        <td>{{ sync.updated_count }} / {{ sync.not_found_count }}</td>
+                                        <td>
+                                            <a href="{{ url_for('main.sync_details', sync_id=sync.id) }}" class="btn btn-sm btn-info" title="View Details">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4">No sync history found.</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Employee Data Table -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Employee Data</h5>
+                        <span class="badge bg-secondary">Total: {{ employees|length }}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Employee ID</th>
+                                        <th>First Name</th>
+                                        <th>Last Name</th>
+                                        <th>Email</th>
+                                        <th>Phone</th>
+                                        <th>Department</th>
+                                        <th>Position</th>
+                                        <th>Start Date</th>
+                                        <th>Resign Date</th>
+                                        <th>Account Expires</th>
+                                        <th>Status</th>
+                                        <th>AD Sync</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for employee in employees %}
+                                    <tr>
+                                        <td>{{ employee.employee_id }}</td>
+                                        <td>{{ employee.fname }}</td>
+                                        <td>{{ employee.lname }}</td>
+                                        <td>{{ employee.email }}</td>
+                                        <td>{{ employee.phone }}</td>
+                                        <td>{{ employee.department }}</td>
+                                        <td>{{ employee.position }}</td>
+                                        <td>{{ employee.start_date.strftime('%Y-%m-%d') if employee.start_date else '' }}</td>
+                                        <td>{{ employee.resigndate.strftime('%Y-%m-%d') if employee.resigndate else '' }}</td>
+                                        <td>{{ employee.account_expires_date.strftime('%Y-%m-%d') if employee.account_expires_date else '' }}</td>
+                                        <td>
+                                            {% if employee.status == 'Active' %}
+                                                <span class="badge bg-success">{{ employee.status }}</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ employee.status }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if employee.ad_updated %}
+                                                <span class="badge bg-primary">Synced</span>
+                                            {% else %}
+                                                <span class="badge bg-warning">Pending</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="12" class="text-center">No employee data found. Please sync data from MyHR or FTP.</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const syncStatus = document.getElementById('sync-status');
+            const syncProgress = document.getElementById('sync-progress');
+            const progressBar = document.querySelector('.progress-bar');
+
+            function showNotification(message, type) {
+                syncStatus.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+                // ซ่อน notification หลังจาก 5 วินาที
+                setTimeout(() => {
+                    const alert = syncStatus.querySelector('.alert');
+                    if (alert) {
+                        alert.remove();
+                    }
+                }, 5000);
+            }
+
+            function updateProgress(percent) {
+                progressBar.style.width = `${percent}%`;
+                progressBar.textContent = `${percent}%`;
+                progressBar.setAttribute('aria-valuenow', percent);
+            }
+
+            // Individual sync buttons
+            document.querySelectorAll('.sync-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const source = this.getAttribute('data-source');
+                    const originalText = this.innerHTML;
+                    this.disabled = true;
+                    this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Syncing...';
+
+                    fetch(`/api/sync/${source}`, { method: 'POST' })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                let message = data.message;
+                                
+                                // ถ้าเป็นการ sync AD ให้แสดงข้อมูลเพิ่มเติม
+                                if (source === 'ad') {
+                                    message = `AD Sync completed. Updated: ${data.updated_count}, Not found: ${data.not_found_count}`;
+                                    
+                                    // แสดง log messages ในรูปแบบที่อ่านง่าย
+                                    if (data.log_messages && data.log_messages.length > 0) {
+                                        const logHtml = data.log_messages.map(msg => `<div>${msg}</div>`).join('');
+                                        showNotification(message, 'info');
+                                        
+                                        // สร้างพื้นที่แสดง log เพิ่มเติม
+                                        const logContainer = document.createElement('div');
+                                        logContainer.className = 'mt-3 p-3 bg-light border rounded';
+                                        logContainer.style.maxHeight = '200px';
+                                        logContainer.style.overflowY = 'auto';
+                                        logContainer.innerHTML = `<h6>Sync Details:</h6>${logHtml}`;
+                                        
+                                        // เพิ่ม log container ลงใน sync-status
+                                        const syncStatus = document.getElementById('sync-status');
+                                        syncStatus.appendChild(logContainer);
+                                    } else {
+                                        showNotification(message, 'success');
+                                    }
+                                } else {
+                                    showNotification(message, 'success');
+                                }
+                                
+                                // รีเฟรชหน้าเว็บเพื่อแสดงข้อมูลล่าสุด
+                                setTimeout(() => location.reload(), 3000);
+                            } else {
+                                showNotification(`Failed to sync from ${source}. Error: ${data.error || 'Unknown error'}`, 'danger');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            showNotification(`An error occurred during sync from ${source}.`, 'danger');
+                        })
+                        .finally(() => {
+                            this.disabled = false;
+                            this.innerHTML = originalText;
+                        });
+                });
+            });
+
+            // Sync all button
+            document.getElementById('sync-all-btn').addEventListener('click', function() {
+                const originalText = this.innerHTML;
+                this.disabled = true;
+                this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+                syncProgress.style.display = 'block';
+                updateProgress(0);
+
+                const steps = ['myhr', 'ftp', 'ad'];
+                let currentStep = 0;
+
+                function processStep() {
+                    if (currentStep >= steps.length) {
+                        showNotification('Full sync process completed successfully!', 'success');
+                        this.disabled = false;
+                        this.innerHTML = originalText;
+                        setTimeout(() => { 
+                            syncProgress.style.display = 'none'; 
+                            location.reload(); // รีเฟรชหน้าเว็บเพื่อแสดงข้อมูลล่าสุด
+                        }, 2000);
+                        return;
+                    }
+
+                    const step = steps[currentStep];
+                    updateProgress(((currentStep + 1) / steps.length) * 100);
+                    showNotification(`Syncing from ${step.toUpperCase()}...`, 'info');
+
+                    fetch(`/api/sync/${step}`, { method: 'POST' })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (!data.success) {
+                                showNotification(`Step ${step.toUpperCase()} failed. Aborting.`, 'danger');
+                                this.disabled = false;
+                                this.innerHTML = originalText;
+                                return;
+                            }
+                            currentStep++;
+                            setTimeout(processStep, 500); // Small delay for UI update
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            showNotification(`An error occurred during step ${step.toUpperCase()}. Aborting.`, 'danger');
+                            this.disabled = false;
+                            this.innerHTML = originalText;
+                        });
+                }
+                
+                processStep();
+            });
+        });
+    </script>
+</body>
+</html>

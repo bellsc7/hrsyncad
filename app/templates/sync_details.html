@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Details - HR Sync System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Sync Details</h5>
+                <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Sync Type:</strong> {{ sync.sync_type.upper() }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Status:</strong> 
+                        {% if sync.status == 'success' %}
+                            <span class="badge bg-success">{{ sync.status }}</span>
+                        {% else %}
+                            <span class="badge bg-danger">{{ sync.status }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Start Time:</strong> {{ sync.start_time.strftime('%Y-%m-%d %H:%M:%S') }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>End Time:</strong> {{ sync.end_time.strftime('%Y-%m-%d %H:%M:%S') if sync.end_time else 'N/A' }}
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Updated Count:</strong> {{ sync.updated_count }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Not Found Count:</strong> {{ sync.not_found_count }}
+                    </div>
+                </div>
+                {% if sync.message %}
+                <div class="mb-3">
+                    <strong>Message:</strong>
+                    <p>{{ sync.message }}</p>
+                </div>
+                {% endif %}
+                {% if sync.error_message %}
+                <div class="mb-3">
+                    <strong>Error Message:</strong>
+                    <div class="alert alert-danger">{{ sync.error_message }}</div>
+                </div>
+                {% endif %}
+                {% if details %}
+                <div class="mb-3">
+                    <strong>Details:</strong>
+                    <div class="border rounded p-3" style="max-height: 400px; overflow-y: auto; background-color: #f8f9fa;">
+                        <ul class="list-unstyled mb-0">
+                            {% for detail in details %}
+                            <li>{{ detail }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
