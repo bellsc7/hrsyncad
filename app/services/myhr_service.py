@@ -33,17 +33,16 @@ def fetch_employees_from_api():
         employees_data = response.json()
         
         for emp_data in employees_data:
-            employee = Employee.query.filter_by(employee_id=emp_data['employee_id']).first()
+            employee = Employee.query.filter_by(employee_id=emp_data['employeeid']).first()
             
             if not employee:
-                employee = Employee(employee_id=emp_data['employee_id'])
+                employee = Employee(employee_id=emp_data['employeeid'])
             
             employee.fname = emp_data.get('fname')
             employee.lname = emp_data.get('lname')
-            employee.email = emp_data.get('email')
             employee.phone = emp_data.get('phone')
             employee.department = emp_data.get('department')
-            employee.position = emp_data.get('position')
+            employee.position = emp_data.get('empPostionTdesc')
             employee.start_date = convert_date_format(emp_data.get('start_date'))
             employee.status = emp_data.get('status')
             
@@ -61,6 +60,7 @@ def fetch_employees_from_api():
                 # ถ้าไม่มีทั้งสองอย่างให้เป็น None
                 employee.account_expires_date = None
                 
+            employee.last_updated = get_asia_bangkok_time()  # อัพเดตเวลาเป็น Asia/Bangkok
             employee.ad_updated = False # รีเซ็ตสถานะเพื่อให้อัพเดต AD ใหม่
             
             db.session.add(employee)

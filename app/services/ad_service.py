@@ -92,8 +92,6 @@ def update_active_directory():
                     changes['employeeID'] = [(MODIFY_REPLACE, [employee.employee_id])]
                 
                 # อัพเดตข้อมูลทั่วไป
-                if employee.email:
-                    changes['mail'] = [(MODIFY_REPLACE, [employee.email])]
                 if employee.phone:
                     changes['telephoneNumber'] = [(MODIFY_REPLACE, [employee.phone])]
                 if employee.department:
@@ -101,16 +99,40 @@ def update_active_directory():
                 if employee.position:
                     changes['title'] = [(MODIFY_REPLACE, [employee.position])]
                 
-                # จัดการการปิดใช้งานบัญชี
-                if employee.status.lower() == 'inactive' or employee.resigndate:
-                    # ตั้งค่า userAccountControl เพื่อปิดใช้งานบัญชี
-                    if not (uac & 0x0002):
-                        new_uac = uac | 0x0002
-                        changes['userAccountControl'] = [(MODIFY_REPLACE, [str(new_uac)])]
+                # จัดการการปิดใช้งานบัญชี - ตรวจสอบเฉพาะเมื่อมีวันที่ลาออกจริง
+                if employee.resigndate:
+                    # ตรวจสอบว่าวันที่ลาออกผ่านไปแล้วหรือยัง
+                    current_date = get_current_time_gmt7().date()
                     
-                    # กำหนดวันที่หมดอายุของบัญชี (ถ้ามี)
-                    if employee.account_expires_date:
-                        expires_date = employee.account_expires_date
+                    if employee.resigndate <= current_date:
+                        # ถ้าวันที่ลาออกผ่านไปแล้ว ให้ปิดใช้งานบัญชี
+                        if not (uac & 0x0002):
+                            new_uac = uac | 0x0002
+                            changes['userAccountControl'] = [(MODIFY_REPLACE, [str(new_uac)])]
+                        
+                        # กำหนดวันที่หมดอายุของบัญชีตามวันที่ลาออก
+                        expires_date = employee.resigndate
+                        # แปลง date เป็น datetime เพื่อให้ subtraction ทำงานได้
+                        expires_datetime = datetime.combine(expires_date, datetime.min.time())
+                        
+                        # ใช้ฟังก์ชัน convert_ce_to_ad_filetime ในการแปลงค่า
+                        # ส่งปี ค.ศ. และเวลา 23:59:59 พร้อม timezone offset +7
+                        filetime_value = convert_ce_to_ad_filetime(
+                            expires_datetime.year,
+                            expires_datetime.month,
+                            expires_datetime.day,
+                            23, 59, 59, 7
+                        )
+                        
+                        changes['accountExpires'] = [(MODIFY_REPLACE, [str(filetime_value)])]
+                    else:
+                        # ถ้าวันที่ลาออกยังไม่ถึง ให้เปิดใช้งานบัญชีแต่ตั้งวันหมดอายุ
+                        if uac & 0x0002:
+                            new_uac = uac & ~0x0002
+                            changes['userAccountControl'] = [(MODIFY_REPLACE, [str(new_uac)])]
+                        
+                        # กำหนดวันที่หมดอายุของบัญชีตามวันที่ลาออก
+                        expires_date = employee.resigndate
                         # แปลง date เป็น datetime เพื่อให้ subtraction ทำงานได้
                         expires_datetime = datetime.combine(expires_date, datetime.min.time())
                         
@@ -125,7 +147,7 @@ def update_active_directory():
                         
                         changes['accountExpires'] = [(MODIFY_REPLACE, [str(filetime_value)])]
                 else:
-                    # ถ้าพนักงานยังทำงานอยู่ ให้เปิดใช้งานบัญชี
+                    # ถ้าพนักงานยังทำงานอยู่ (ไม่มีวันที่ลาออก) ให้เปิดใช้งานบัญชี
                     if uac & 0x0002:
                         new_uac = uac & ~0x0002
                         changes['userAccountControl'] = [(MODIFY_REPLACE, [str(new_uac)])]

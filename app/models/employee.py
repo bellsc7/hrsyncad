@@ -4,9 +4,8 @@ from datetime import datetime
 class Employee(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.String(20), unique=True, nullable=False)
-    fname = db.Column(db.String(64), nullable=False)
-    lname = db.Column(db.String(64), nullable=False)
-    email = db.Column(db.String(120), unique=True)
+    fname = db.Column(db.String(64), nullable=True)  # อนุญาให้เป็น nullable=True เพื่อรับข้อมูลที่อาจมีค่าว่าง
+    lname = db.Column(db.String(64), nullable=True)  # อนุญาให้เป็น nullable=True เพื่อรับข้อมูลที่อาจมีค่าว่าง
     phone = db.Column(db.String(20))
     department = db.Column(db.String(64))
     position = db.Column(db.String(64))

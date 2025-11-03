@@ -155,7 +155,6 @@
                                         <th>Employee ID</th>
                                         <th>First Name</th>
                                         <th>Last Name</th>
-                                        <th>Email</th>
                                         <th>Phone</th>
                                         <th>Department</th>
                                         <th>Position</th>
@@ -172,7 +171,6 @@
                                         <td>{{ employee.employee_id }}</td>
                                         <td>{{ employee.fname }}</td>
                                         <td>{{ employee.lname }}</td>
-                                        <td>{{ employee.email }}</td>
                                         <td>{{ employee.phone }}</td>
                                         <td>{{ employee.department }}</td>
                                         <td>{{ employee.position }}</td>
@@ -196,7 +194,7 @@
                                     </tr>
                                     {% else %}
                                     <tr>
-                                        <td colspan="12" class="text-center">No employee data found. Please sync data from MyHR or FTP.</td>
+                                        <td colspan="11" class="text-center">No employee data found. Please sync data from MyHR or FTP.</td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>

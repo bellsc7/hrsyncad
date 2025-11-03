@@ -42,7 +42,6 @@ def employees():
             'employee_id': emp.employee_id,
             'fname': emp.fname,
             'lname': emp.lname,
-            'email': emp.email,
             'phone': emp.phone,
             'department': emp.department,
             'position': emp.position,
