@@ -16,7 +16,7 @@ pyasn1_modules==0.4.2
 pyasynchat==1.0.4
 pyasyncore==1.0.4
 pyftpdlib==2.1.0
-python-ldap==3.4.5
+ldap3==2.9.1
 requests==2.32.5
 SQLAlchemy==2.0.44
 typing_extensions==4.15.0

@@ -9,8 +9,8 @@ class Config:
     # MyHR API Config
     MYHR_API_URL = 'https://api.myhr.com/employees' # แก้ไข URL ให้ถูกต้อง
     MYHR_API_KEY = 'your-api-key-here' # ใส่ API Key จริง
-    
-    # FTP Config
+   
+   # FTP Config
     FTP_HOST = 'localhost' # แก้ไข Host ให้ถูกต้อง
     FTP_USER = 'ftpuser'
     FTP_PASSWORD = '123456'

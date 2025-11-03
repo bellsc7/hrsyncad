@@ -11,6 +11,7 @@ def fetch_employees_from_ftp():
         with db.session.no_autoflush:
             ftp = ftplib.FTP(Config.FTP_HOST)
             ftp.login(Config.FTP_USER, Config.FTP_PASSWORD)
+            ftp.set_pasv(True)  # Enable passive mode for better compatibility
             ftp.cwd(Config.FTP_PATH)
             
             files = ftp.nlst()

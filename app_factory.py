@@ -28,7 +28,7 @@ def create_app(config_class='config.Config'):
     Creates and configures the Flask application.
     """
     # สร้างแอปพลิเคชัน Flask
-    app = Flask(__name__, template_folder='app/templates')
+    app = Flask(__name__, template_folder='app/templates', static_folder='app/static')
     app.config.from_object(config_class)
     
     # เริ่มต้นส่วนขยายต่างๆ

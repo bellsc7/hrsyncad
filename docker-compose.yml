@@ -1,0 +1,24 @@
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    network_mode: host
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-your-very-secret-key-for-session}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://pacifica:P%40cific%402018@10.210.1.3/hr_sync_db}
+      - MYHR_API_URL=${MYHR_API_URL:-https://api.myhr.com/employees}
+      - MYHR_API_KEY=${MYHR_API_KEY:-your-api-key-here}
+      - FTP_HOST=${FTP_HOST:-10.210.1.4}
+      - FTP_USER=${FTP_USER:-ftpuser}
+      - FTP_PASSWORD=${FTP_PASSWORD:-123456}
+      - FTP_PATH=${FTP_PATH:-/}
+      - AD_SERVER=${AD_SERVER:-10.210.1.5}
+      - AD_DOMAIN=${AD_DOMAIN:-itpacifica.local}
+      - AD_USER=${AD_USER:-administrator}
+      - AD_PASSWORD=${AD_PASSWORD:-P@cific@2018}
+      - AD_BASE_DN=${AD_BASE_DN:-DC=itpacifica,DC=local}
+    volumes:
+      - ./app:/app/app
+    restart: unless-stopped
+   
