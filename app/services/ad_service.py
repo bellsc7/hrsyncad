@@ -117,11 +117,13 @@ def update_active_directory():
                         
                         # ใช้ฟังก์ชัน convert_ce_to_ad_filetime ในการแปลงค่า
                         # ส่งปี ค.ศ. และเวลา 23:59:59 พร้อม timezone offset +7
+                        # แต่เพื่อให้ตรงกับวันที่ลาออกพอดี เราต้องเพิ่ม 1 วัน
+                        next_day = expires_date + timedelta(days=1)
                         filetime_value = convert_ce_to_ad_filetime(
-                            expires_datetime.year,
-                            expires_datetime.month,
-                            expires_datetime.day,
-                            23, 59, 59, 7
+                            next_day.year,
+                            next_day.month,
+                            next_day.day,
+                            0, 0, 0, 7
                         )
                         
                         changes['accountExpires'] = [(MODIFY_REPLACE, [str(filetime_value)])]
@@ -138,11 +140,13 @@ def update_active_directory():
                         
                         # ใช้ฟังก์ชัน convert_ce_to_ad_filetime ในการแปลงค่า
                         # ส่งปี ค.ศ. และเวลา 23:59:59 พร้อม timezone offset +7
+                        # แต่เพื่อให้ตรงกับวันที่ลาออกพอดี เราต้องเพิ่ม 1 วัน
+                        next_day = expires_date + timedelta(days=1)
                         filetime_value = convert_ce_to_ad_filetime(
-                            expires_datetime.year,
-                            expires_datetime.month,
-                            expires_datetime.day,
-                            23, 59, 59, 7
+                            next_day.year,
+                            next_day.month,
+                            next_day.day,
+                            0, 0, 0, 7
                         )
                         
                         changes['accountExpires'] = [(MODIFY_REPLACE, [str(filetime_value)])]
