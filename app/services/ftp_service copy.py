@@ -37,22 +37,22 @@ def fetch_employees_from_ftp():
                             print(f"Creating new employee with ID: {row['employeeid']}")
                         else:
                             # ตรวจสอบว่ามีการอัพเดตข้อมูลใน CSV (fname, lname)
-                            has_update_data = any([row.get('EFNAME'), row.get('ELNAME')])
+                            has_update_data = any([row.get('fname'), row.get('lname')])
                             
                             if has_update_data:
                                 print(f"Updating existing employee with ID: {row['employeeid']}")
                         
                         # อัพเดตข้อมูลจาก CSV สำหรับทั้งพนักงานใหม่และพนักงานเดิม
-                        if row.get('EFNAME'):
-                            employee.fname = row.get('EFNAME')
-                        if row.get('ELNAME'):
-                            employee.lname = row.get('ELNAME')
+                        if row.get('fname'):
+                            employee.fname = row.get('fname')
+                        if row.get('lname'):
+                            employee.lname = row.get('lname')
                         if row.get('phone'):
                             employee.phone = row.get('phone')
-                        if row.get('Division'):
-                            employee.department = row.get('Division')
-                        if row.get('POSITION'):
-                            employee.position = row.get('POSITION')
+                        if row.get('department'):
+                            employee.department = row.get('department')
+                        if row.get('empPostionTdesc'):
+                            employee.position = row.get('empPostionTdesc')
                         
                         # แปลงวันที่เริ่มงาน (รับเป็นปี พ.ศ.)
                         try:
