@@ -1,10 +1,19 @@
-import json # <-- เพิ่ม import json
+import json
+import socket
+import time
+import logging
 from app.models.sync_history import SyncHistory
 from ldap3 import Server, Connection, ALL, MODIFY_REPLACE
+from ldap3.core.exceptions import LDAPException
 from app_factory import db, get_asia_bangkok_time
 from app.models.employee import Employee
+from app.utils.network_diagnostics import troubleshoot_ad_connection
 from config import Config
 from datetime import datetime, timezone, timedelta
+
+# Configure logging for AD service
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def convert_ce_to_ad_filetime(year_ce, month, day, hour, minute, second, timezone_offset_hours):
     """
@@ -58,15 +67,109 @@ def get_current_time_gmt7():
     # คืนค่าเป็น datetime โดยไม่รวม timezone information
     return gmt7_now.replace(tzinfo=None)
 
+def test_ad_server_connectivity(server_host, port=389, timeout=10):
+    """
+    Test basic TCP connectivity to AD server
+    """
+    try:
+        logger.info(f"Testing connectivity to AD server {server_host}:{port}")
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((server_host, port))
+        sock.close()
+        
+        if result == 0:
+            logger.info(f"Successfully connected to {server_host}:{port}")
+            return True
+        else:
+            logger.error(f"Failed to connect to {server_host}:{port} - Error code: {result}")
+            return False
+    except socket.error as e:
+        logger.error(f"Socket error when testing connectivity to {server_host}:{port}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error when testing connectivity to {server_host}:{port}: {e}")
+        return False
+
+def create_ad_connection_with_retry():
+    """
+    Create AD connection with retry mechanism and proper timeout settings
+    """
+    server_host = Config.AD_SERVER
+    server_port = getattr(Config, 'AD_PORT', 389)  # Default LDAP port
+    max_retries = getattr(Config, 'AD_MAX_RETRIES', 3)
+    retry_delay = getattr(Config, 'AD_RETRY_DELAY', 5)
+    connection_timeout = getattr(Config, 'AD_CONNECTION_TIMEOUT', 30)
+    read_timeout = getattr(Config, 'AD_READ_TIMEOUT', 30)
+    use_ssl = getattr(Config, 'AD_USE_SSL', False)
+    
+    # Test basic connectivity first
+    if not test_ad_server_connectivity(server_host, server_port):
+        raise Exception(f"Cannot establish basic TCP connection to AD server {server_host}:{server_port}")
+    
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"Attempting AD connection (attempt {attempt + 1}/{max_retries})")
+            
+            # Create server with timeout settings
+            server = Server(
+                server_host,
+                port=server_port,
+                get_info=ALL,
+                connect_timeout=connection_timeout,
+                use_ssl=use_ssl
+            )
+            
+            user = f"{Config.AD_USER}@{Config.AD_DOMAIN}"
+            
+            # Create connection with explicit timeout
+            conn = Connection(
+                server,
+                user=user,
+                password=Config.AD_PASSWORD,
+                auto_bind=True,
+                client_strategy='SYNC',
+                receive_timeout=read_timeout,
+                raise_exceptions=True
+            )
+            
+            logger.info(f"Successfully connected to AD server {server_host}")
+            return conn
+            
+        except LDAPException as e:
+            logger.error(f"LDAP error on attempt {attempt + 1}: {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                raise Exception(f"Failed to connect to AD after {max_retries} attempts: {e}")
+        except socket.timeout as e:
+            logger.error(f"Socket timeout on attempt {attempt + 1}: {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                raise Exception(f"Connection timeout to AD server after {max_retries} attempts: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error on attempt {attempt + 1}: {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                raise Exception(f"Failed to connect to AD after {max_retries} attempts: {e}")
+
 def update_active_directory():
     # สร้าง record สำหรับเก็บประวัติการ sync
     sync_record = SyncHistory(sync_type='ad', status='running')
     db.session.add(sync_record)
     db.session.commit()
+    
+    conn = None
     try:
-        server = Server(Config.AD_SERVER, get_info=ALL)
-        user = f"{Config.AD_USER}@{Config.AD_DOMAIN}"
-        conn = Connection(server, user=user, password=Config.AD_PASSWORD, auto_bind=True)
+        logger.info("Starting AD synchronization process")
+        
+        # Use the new connection method with retry
+        conn = create_ad_connection_with_retry()
 
         # ดึงรายการพนักงานที่ยังไม่ได้อัพเดตใน AD
         employees_to_update = Employee.query.filter_by(ad_updated=False).all()
@@ -205,21 +308,105 @@ def update_active_directory():
         }
         return result
         
-    except Exception as e:
-        print(f"Error updating Active Directory: {e}")
+    except LDAPException as e:
+        logger.error(f"LDAP error during AD synchronization: {e}")
         db.session.rollback()
 
         # อัปเดต record ว่าล้มเหลว
         sync_record.status = 'failed'
         sync_record.end_time = get_asia_bangkok_time()
-        sync_record.error_message = str(e)
+        sync_record.error_message = f"LDAP Error: {str(e)}"
         db.session.add(sync_record)
         db.session.commit()
         
         return {
             'success': False,
-            'error': str(e),
+            'error': f"LDAP Error: {str(e)}",
             'updated_count': 0,
             'not_found_count': 0,
-            'log_messages': []
+            'log_messages': [f"LDAP Error: {str(e)}"]
         }
+        
+    except socket.timeout as e:
+        logger.error(f"Socket timeout during AD synchronization: {e}")
+        db.session.rollback()
+
+        # Run network diagnostics when timeout occurs
+        diagnostics = troubleshoot_ad_connection()
+        logger.info(f"Network diagnostics completed: {diagnostics['diagnostics']['overall_status']}")
+        
+        # อัปเดต record ว่าล้มเหลว
+        sync_record.status = 'failed'
+        sync_record.end_time = get_asia_bangkok_time()
+        sync_record.error_message = f"Connection Timeout: {str(e)}"
+        sync_record.details = json.dumps({
+            'error': f"Connection Timeout: {str(e)}",
+            'diagnostics': diagnostics['diagnostics'],
+            'recommendations': diagnostics['recommendations']
+        })
+        db.session.add(sync_record)
+        db.session.commit()
+        
+        return {
+            'success': False,
+            'error': f"Connection Timeout: {str(e)}",
+            'updated_count': 0,
+            'not_found_count': 0,
+            'log_messages': [f"Connection Timeout: {str(e)}"] + diagnostics['recommendations']
+        }
+        
+    except socket.error as e:
+        logger.error(f"Socket error during AD synchronization: {e}")
+        db.session.rollback()
+
+        # Run network diagnostics when socket error occurs
+        diagnostics = troubleshoot_ad_connection()
+        logger.info(f"Network diagnostics completed: {diagnostics['diagnostics']['overall_status']}")
+        
+        # อัปเดต record ว่าล้มเหลว
+        sync_record.status = 'failed'
+        sync_record.end_time = get_asia_bangkok_time()
+        sync_record.error_message = f"Network Error: {str(e)}"
+        sync_record.details = json.dumps({
+            'error': f"Network Error: {str(e)}",
+            'diagnostics': diagnostics['diagnostics'],
+            'recommendations': diagnostics['recommendations']
+        })
+        db.session.add(sync_record)
+        db.session.commit()
+        
+        return {
+            'success': False,
+            'error': f"Network Error: {str(e)}",
+            'updated_count': 0,
+            'not_found_count': 0,
+            'log_messages': [f"Network Error: {str(e)}"] + diagnostics['recommendations']
+        }
+        
+    except Exception as e:
+        logger.error(f"Unexpected error during AD synchronization: {e}")
+        db.session.rollback()
+
+        # อัปเดต record ว่าล้มเหลว
+        sync_record.status = 'failed'
+        sync_record.end_time = get_asia_bangkok_time()
+        sync_record.error_message = f"Unexpected Error: {str(e)}"
+        db.session.add(sync_record)
+        db.session.commit()
+        
+        return {
+            'success': False,
+            'error': f"Unexpected Error: {str(e)}",
+            'updated_count': 0,
+            'not_found_count': 0,
+            'log_messages': [f"Unexpected Error: {str(e)}"]
+        }
+        
+    finally:
+        # Ensure connection is properly closed
+        if conn:
+            try:
+                conn.unbind()
+                logger.info("AD connection closed successfully")
+            except Exception as e:
+                logger.warning(f"Error closing AD connection: {e}")
